@@ -11,8 +11,17 @@ clean:
 help:
 	bash run.sh help
 
+# e.g. `make install ARGS="--group dbt"`
 install:
-	bash run.sh install
+	bash run.sh install $(ARGS)
+
+# e.g. `make add ARGS="--group dbt dbt-core"`
+add:
+	bash run.sh add $(ARGS)
+
+# e.g. `make remove ARGS="--group dbt dbt-duckdb"`
+remove:
+	bash run.sh remove $(ARGS)
 
 lint:
 	bash run.sh lint

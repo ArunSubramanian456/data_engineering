@@ -4,13 +4,38 @@ set -e
 
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-# install core and development Python dependencies into the currently activated venv
+# sync the venv to uv.lock: the project (editable) + the dev group, plus any extra groups passed in.
+# --locked fails if pyproject.toml and uv.lock disagree (run `uv lock` or use `add`).
+# (example) ./run.sh install --group dbt
 function install {
     if [[ -n "$VIRTUAL_ENV" ]]; then
         export UV_PROJECT_ENVIRONMENT="$VIRTUAL_ENV"
     fi
-    uv pip install --group dev
-    uv pip install -e .
+    uv sync --locked "$@"
+    # install the git hook (.git/hooks/pre-commit) so checks run on every `git commit`.
+    # Skipped in CI: GitHub Actions sets CI=true, and CI only needs `pre-commit run` (lint:ci).
+    if [[ -z "$CI" ]]; then
+        uv run --locked pre-commit install
+    fi
+}
+
+# add a dependency to pyproject.toml, update uv.lock and install it.
+# (example) ./run.sh add pandas                    -> runtime dep of src/
+# (example) ./run.sh add --group dbt dbt-core      -> tool group, installed with `install --group dbt`
+function add {
+    if [[ -n "$VIRTUAL_ENV" ]]; then
+        export UV_PROJECT_ENVIRONMENT="$VIRTUAL_ENV"
+    fi
+    uv add "$@"
+}
+
+# remove a dependency from pyproject.toml and uv.lock.
+# (example) ./run.sh remove --group dbt dbt-duckdb
+function remove {
+    if [[ -n "$VIRTUAL_ENV" ]]; then
+        export UV_PROJECT_ENVIRONMENT="$VIRTUAL_ENV"
+    fi
+    uv remove "$@"
 }
 
 # run linting, formatting, and other static code quality tools during local development
@@ -42,26 +67,36 @@ function lint:ci {
 #     run-tests -m "not slow" ${@:-"$THIS_DIR/tests/"}
 # }
 
+# run python from the activated venv if there is one (CI, test:wheel-locally), else from the project venv via uv
+function py {
+    if [[ -n "$VIRTUAL_ENV" ]]; then
+        python "$@"
+    else
+        uv run --locked python "$@"
+    fi
+}
+
 # execute tests against the installed package; assumes the wheel is already installed
 function test:ci {
-    INSTALLED_PKG_DIR="$(python -c 'import data_engineering; print(data_engineering.__path__[0])')"
+    INSTALLED_PKG_DIR="$(py -c 'import data_engineering; print(data_engineering.__path__[0])')"
     # in CI, we must calculate the coverage for the installed package, not the src/ folder
     COVERAGE_DIR="$INSTALLED_PKG_DIR" run-tests
 }
 
 # (example) ./run.sh test tests/test_states_info.py::test__slow_add
 function run-tests {
-    mkdir -p "$THIS_DIR/test-reports"
+    local REPORTS_DIR="$THIS_DIR/test-reports"
+    # start from a clean report dir so no stale HTML pages survive from a previous run
+    rm -rf "$REPORTS_DIR"
+    mkdir -p "$REPORTS_DIR"
     PYTEST_EXIT_STATUS=0
-    python -m pytest ${@:-"$THIS_DIR/tests/"} \
+    # write every report straight into test-reports/ (no mv afterwards)
+    COVERAGE_FILE="$REPORTS_DIR/.coverage" py -m pytest ${@:-"$THIS_DIR/tests/"} \
         --cov "${COVERAGE_DIR:-$THIS_DIR/src}" \
-        --cov-report html \
+        --cov-report "html:$REPORTS_DIR/htmlcov" \
         --cov-report term \
-        --cov-report xml \
-        --junit-xml "$THIS_DIR/test-reports/report.xml" || ((PYTEST_EXIT_STATUS+=$?))
-    mv coverage.xml "$THIS_DIR/test-reports/" || true
-    mv htmlcov "$THIS_DIR/test-reports/" || true
-    mv .coverage "$THIS_DIR/test-reports/" || true
+        --cov-report "xml:$REPORTS_DIR/coverage.xml" \
+        --junit-xml "$REPORTS_DIR/report.xml" || ((PYTEST_EXIT_STATUS+=$?))
     return $PYTEST_EXIT_STATUS
 }
 
@@ -71,7 +106,6 @@ function test:wheel-locally {
     uv venv test-env
     source test-env/bin/activate
     clean 2>/dev/null || true
-    uv pip install build
     build
     uv pip install ./dist/*.whl pytest pytest-cov
     test:ci
@@ -92,7 +126,7 @@ function build {
     if [[ -n "$VIRTUAL_ENV" ]]; then
         export UV_PROJECT_ENVIRONMENT="$VIRTUAL_ENV"
     fi
-    uv  run python -m build --sdist --wheel "$THIS_DIR/"
+    uv build --sdist --wheel "$THIS_DIR/"
 }
 
 # function release:test {
