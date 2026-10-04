@@ -163,6 +163,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# AI Agent related files
+.claude/*
+CLAUDE.md
+.verified/
+
 # custom
 test-reports
 tests/artifacts
@@ -174,3 +179,4 @@ dist
 *env
 *.env
 *cache*
+.mcp.json
