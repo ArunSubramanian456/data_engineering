@@ -1,0 +1,123 @@
+[build-system]
+# Minimum requirements for the build system to execute.
+requires = ["setuptools>=84.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# [tool.setuptools.package-data]
+# example_pkg = ["*.json"]
+
+[project]
+name = "data_engineering"
+authors = [{ name = "Arun Subramanian" }]
+description = "hands-on data engineering study plan"
+readme = "README.md"
+requires-python = ">=3.11, <3.13"
+keywords = ["python", "cookiecutter", "package template"]
+license = { text = "MIT" }
+classifiers = ["Programming Language :: Python :: 3"]
+dependencies = [
+    "numpy>=2.3.5, <3.0.0",
+    "pandas>=2.3.3, <3.0.0",
+    "joblib>=1.5.2, <2.0.0",
+    "scikit-learn>=1.7.2, <2.0.0",
+    "pydantic>=2.12.5, <3.0.0",
+    "flask>=3.1.2, <4.0.0",
+    "requests>=2.32.5, <3.0.0",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://ArunSubramanian456.github.io/data_engineering/"
+Repository = "https://github.com/ArunSubramanian456/data_engineering"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pre-commit>=4.6.2",
+    "ty>=0.0.24",
+    "ruff>=0.15.7",
+    "build>=1.4.0",
+    "radon>=5.1.0",
+]
+
+# docs: https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
+[tool.setuptools.dynamic]
+version = { file = "version.txt" }
+
+[tool.setuptools.packages.find]
+where = ["src"] # Ensures setuptools finds code inside src/ directory
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra -q --cov=data_engineering --cov-report=term-missing --cov-fail-under=70"
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+
+
+[tool.ruff]
+target-version = "py312"
+line-length = 119
+
+[tool.ruff.lint]
+# Enable flake8-bugbear (`B`) rules.
+select = [
+    "YTT",
+    "S",
+    "A",
+    "C4",
+    "T10",
+    "SIM",
+    "I",
+    "C901",
+    "W",
+    "RUF",
+    "E",
+    "F",
+    "B",
+    "ERA",
+]
+
+# Never enforce `E501` (line length violations).
+ignore = ["E501", "F401", "E731"]
+
+# Avoid trying to fix flake8-bugbear (`B`) violations.
+unfixable = ["B"]
+
+[tool.ruff.lint.mccabe]
+# Set the maximum allowed cyclomatic complexity threshold
+max-complexity = 20
+
+[tool.ruff.lint.isort]
+known-first-party = ["data_engineering"]
+lines-between-types = 1
+
+# Ignore `E402` (import violations) in all `__init__.py` files, and in `path/to/file.py`.
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402"]
+"path/to/file.py" = ["E402"]
+"tests/*" = ["S101"]
+
+[tool.ruff.format]
+preview = true
+
+[tool.uv]
+package = false
+
+[tool.ty]
+# Cleanest way to handle missing external library types
+rules = { unresolved-import = "ignore" }
+# Ensures ty always scans your environment files correctly
+environment = { root = ["."] }
+
+[tool.setuptools.package-data]
+# Use tool.hatch.build.include to include additional files in the build, if we change the build backend to hatchling.
+# See https://hatch.pypa.io/latest/build/#including-additional-files-in-the-build
+"data_engineering" = [
+    "*.txt",
+    "*.csv",
+    "*.md",
+    "*.json",
+    "*.yaml",
+    "*.yml",
+]

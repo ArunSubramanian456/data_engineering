@@ -1,0 +1,160 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+jobs:
+  lint-format-and-static-code-checks:
+    name: Lint, Format, and other static code quality checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.29"
+
+      - name: Install dependencies
+        run: |
+          uv venv .venv
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+          /bin/bash -x run.sh install
+
+      # - name: Install pre-commit
+      #   run: uv pip install --system pre-commit
+
+      - name: Lint, Format, and other static code quality checks
+        run: /bin/bash -x run.sh lint:ci
+
+  execute-tests:
+    name: Execute tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.29"
+
+      - name: Install dependencies
+        run: |
+          uv venv .venv
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+          /bin/bash -x run.sh install
+
+      - name: Run Unit Tests and report coverage
+        run: /bin/bash -x run.sh test:ci
+
+  check-version-tag:
+    name: Validate Version & Check Tag Conflict
+    needs: [lint-format-and-static-code-checks, execute-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check version.txt syntax and duplicate remote tags
+        run: |
+          VERSION=$(cat version.txt)
+          echo "Target version: $VERSION"
+
+          # Check if tag already exists on GitHub
+          IF_EXISTS=$(git ls-remote --tags origin "refs/tags/$VERSION")
+          if [[ -n "$IF_EXISTS" ]]; then
+            echo "Error: Tag '$VERSION' already exists on remote!"
+            exit 1
+          fi
+
+  build-wheel:
+    name: Test building wheel locally
+    needs:
+      [lint-format-and-static-code-checks, execute-tests, check-version-tag]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.29"
+
+      - name: Build wheel locally and test it
+        run: /bin/bash -x run.sh test:wheel-locally
+
+  release-on-main:
+    name: Tag Release
+    needs:
+      [
+        lint-format-and-static-code-checks,
+        execute-tests,
+        check-version-tag,
+        build-wheel,
+      ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Push tags
+        run: |
+          VERSION=$(cat version.txt)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+
+  # https://docs.github.com/en/actions/learn-github-actions/contexts#example-printing-context-information-to-the-log
+  dump-contexts-to-log:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump GitHub context
+        id: github_context_step
+        run: echo '${{ toJSON(github) }}'
+      - name: Dump job context
+        run: echo '${{ toJSON(job) }}'
+      - name: Dump steps context
+        run: echo '${{ toJSON(steps) }}'
+      - name: Dump runner context
+        run: echo '${{ toJSON(runner) }}'
+      - name: Dump strategy context
+        run: echo '${{ toJSON(strategy) }}'
+      - name: Dump matrix context
+        run: echo '${{ toJSON(matrix) }}'
+      - name: Dump secrets
+        run: echo '${{ toJSON(secrets) }}'
+      - name: Dump vars
+        run: echo '${{ toJSON(vars) }}'
