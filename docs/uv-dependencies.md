@@ -259,7 +259,7 @@ Use `--rebase` with `update-branch`: without it, GitHub merges `main` into your 
 | `gh pr merge --merge` | Your commits **plus** a "Merge pull request #N" commit | Avoid: it breaks linear history. Turn it off in the repo settings (below) |
 
 Useful extras:
-- `-d` / `--delete-branch`: after merging, deletes the remote branch, deletes the local branch, switches you to `main` and pulls it.
+- `-d` / `--delete-branch`: after merging, deletes the remote branch, deletes the local branch, switches you to `main` and pulls it. It does **not** remove the stale `origin/<branch>` ref (see §4) unless `fetch.prune` is on.
 - `--subject "…"` / `--body "…"`: override the squash commit message.
 - `--auto`: merge automatically once checks pass. Needs Settings → General → "Allow auto-merge".
 - `--admin`: bypass protection. Don't use it; the point of the PR is CI.
@@ -267,9 +267,27 @@ Useful extras:
 **Recommended:**
 ```bash
 gh pr merge --rebase --delete-branch     # or --squash --delete-branch for noisy branches
+git fetch --prune                        # only needed if fetch.prune isn't set (see §4)
+git branch -a                            # → main, origin/main, origin/HEAD
 ```
 
 ### 4. Delete the branch (remote and local)
+Three different things are called "the branch":
+
+| What | Where | Removed by |
+|---|---|---|
+| `<branch>` on GitHub | the remote | `gh pr merge -d`, auto-delete, or the PR's "Delete branch" button |
+| `<branch>` | your local branch | `gh pr merge -d`, or `git branch -D` |
+| `remotes/origin/<branch>` | your **local snapshot** of the remote, as of the last fetch | only `git fetch --prune` (or any fetch/pull with `fetch.prune` on) |
+
+A normal fetch or pull adds and updates `origin/*` refs but never removes them. That's why `git branch -a` still lists a branch that GitHub has already deleted.
+
+**One-time setup (recommended):** prune automatically on every fetch/pull, including the pull that `gh pr merge -d` runs:
+```bash
+git config --global fetch.prune true     # or without --global for this repo only
+```
+This only removes your cached `origin/*` copies, never real branches, so it's safe everywhere.
+
 **Remote.** One of:
 - `--delete-branch` on `gh pr merge` (above), or
 - Settings → General → Pull Requests → **"Automatically delete head branches"** (already on for this repo), or
@@ -282,10 +300,10 @@ Don't use `git push origin --delete <branch>`; the push hook blocks branch delet
 git switch main && git pull --rebase
 gh pr view <branch> --json state --jq .state      # must print MERGED
 git branch -D <branch>                            # capital -D: force, safe only after MERGED
-git fetch --prune                                 # drop stale origin/* refs for deleted remote branches
+git fetch --prune                                 # drop stale origin/* refs (skip if fetch.prune is on)
 git branch -a                                     # verify
 ```
-`gh pr merge --delete-branch` does all of this for you.
+`gh pr merge --delete-branch` covers the first three lines (switch, pull, delete local). The prune still needs `git fetch --prune` or `fetch.prune=true`.
 
 ### 5. Check the run on `main` after the merge
 Merging triggers a `push` run on `main`, separate from the PR run:
@@ -320,6 +338,7 @@ Settings → Branches → `main` rule: optionally tick **"Require linear history
 | Two groups can't resolve together | Add `[tool.uv] conflicts = [[{ group = "a" }, { group = "b" }]]` to `pyproject.toml` |
 | Want a totally clean slate | `make clean && rm -rf .venv && make install` |
 | `git branch -d` says "not fully merged" after the PR merged | Squash/rebase merges create new SHAs → confirm `gh pr view <branch> --json state` is `MERGED`, then `git branch -D <branch>` |
+| `git branch -a` still lists `origin/<branch>` after the PR merged and the branch was deleted | Stale remote-tracking ref → `git fetch --prune`; prevent it with `git config --global fetch.prune true` |
 | PR shows `mergeStateStatus: BEHIND` / "branch out of date" | Strict checks are on → `gh pr update-branch --rebase` (see Part C §2) |
 | Push run on `main` fails in **Tag Release** with `fatal: tag 'v0.0.0' already exists` | Not a merge failure: the merge already happened, only the post-merge tagging job failed. `version.txt` (`v0.0.0`) is already tagged. Fix: turn `release-on-main` into a no-op placeholder (no tagging, no `contents: write`) |
 | `git commit` on `main` blocked for a docs-only change | `no-commit-to-branch` blocks all commits on `main` → use a branch + PR, or run `SKIP=no-commit-to-branch git commit …` yourself for an admin direct push |
