@@ -123,7 +123,7 @@ git commit -m "build: pin python 3.11 and sync env"   # the git hook runs the ch
 git push -u origin build/<short-desc>
 gh pr create --fill
 ```
-If the commit is aborted because a hook modified files (e.g. `ruff format`), review the changes, `git add` them, and commit again. Merge the PR once the required checks are green.
+If the commit is aborted because a hook modified files (e.g. `ruff format`), review the changes, `git add` them, and commit again. Then follow **Part C** to watch CI, merge and clean up.
 
 ---
 
@@ -177,11 +177,13 @@ git add dbt/
 git commit -m "feat(f1): first dbt model"
 ```
 
-**9. Push, open a PR, and merge when CI is green.** After merging:
+**9. Push, open a PR, merge and clean up.** See **Part C** for the details. In short:
 ```bash
-git switch main && git pull --rebase
-git branch -d build/dbt-deps
-make install ARGS="--group dbt"  # re-sync with the groups you're using
+git push -u origin build/dbt-deps
+gh pr create --fill-first          # title = first commit subject (Conventional Commit)
+gh pr checks --watch               # wait for the required checks
+gh pr merge --rebase --delete-branch   # keeps build(...) and feat(...) as separate commits on main
+make install ARGS="--group dbt"    # re-sync with the groups you're using
 ```
 
 ### Expected additions over the plan
@@ -194,6 +196,111 @@ make install ARGS="--group dbt"  # re-sync with the groups you're using
 | First `src/` data validation | `make add ARGS='"pandera>=0.20,<1"'` (runtime) |
 | First test that mocks AWS | `make add ARGS='--group dev "moto[s3,glue]>=5,<6"'` |
 | Spark phase (Glue 5.x = Spark 3.5) | `make add ARGS='--group spark "pyspark>=3.5,<3.6" pyarrow'` |
+
+---
+
+## Part C: pull request lifecycle (open → check → merge → clean up)
+
+`main` is protected: a PR is required, with 0 approvals, and the required checks `Lint, Format, and other static code quality checks` and `Execute tests` must pass on a branch that's up to date with `main`. The PR exists to run CI, not for review.
+
+### 1. Open the PR
+```bash
+git push -u origin <branch>
+gh pr create --fill-first      # or --fill / --title "type(scope): summary"
+```
+| Flag | Title / body comes from |
+|---|---|
+| `--fill` | 1 commit: its subject/body. Several commits: title from the **branch name**, body = list of commit subjects |
+| `--fill-first` | The first commit's subject/body, even with several commits |
+| `--fill-verbose` | Body = every commit's full message |
+| `--title "…" --body "…"` | You. `--draft` opens a draft; `--web` finishes it in the browser |
+
+Make the PR title a valid Conventional Commit (`build(dbt): add dbt group`). With `--squash` it becomes the commit subject on `main`, and the local commit-msg hook never sees it. Fix it with `gh pr edit --title "…"`.
+
+### 2. Check the PR's status
+```bash
+gh pr status                    # your PRs at a glance
+gh pr checks --watch            # live CI status until all checks finish
+gh pr view                      # human-readable summary of the current branch's PR
+gh pr view <number> --json state,mergeStateStatus,mergedAt,headRefName \
+  --jq '{state, mergeStateStatus, mergedAt, headRefName}'
+gh pr view <number> --json statusCheckRollup \
+  --jq '.statusCheckRollup[] | "\(.name): \(.conclusion)"'
+```
+Without `<number>`, `gh pr view` uses the PR for the current branch.
+
+| Field | Values and meaning |
+|---|---|
+| `state` | `OPEN`, `MERGED`, `CLOSED` (closed without merging). **Check this is `MERGED` before deleting a branch by hand** |
+| `mergedAt` | Timestamp of the merge, `null` if not merged |
+| `mergeStateStatus` | `CLEAN` = ready to merge · `BLOCKED` = required checks pending/failing · `BEHIND` = branch not up to date with `main` (rebase, see below) · `DIRTY` = merge conflicts · `UNSTABLE` = a non-required check failed · `UNKNOWN` = still computing (or already merged) |
+| `statusCheckRollup` | Each check's `name` and `conclusion`: `SUCCESS`, `FAILURE`, `SKIPPED`, … |
+| `mergeCommit` | `.mergeCommit.oid`: the commit the PR produced on `main` |
+
+**`BEHIND`?** The branch must be rebased onto the latest `main`. Two ways:
+```bash
+# A) Let GitHub do it (no force push needed). CI re-runs on the rebased branch.
+gh pr update-branch --rebase
+git pull --rebase               # bring your local branch in line, if you keep working on it
+
+# B) Locally. Rebasing rewrites the branch's commits, so the push must be a force push.
+git fetch origin && git rebase origin/main
+make lint
+make test
+git push --force-with-lease     # blocked for Claude by the hooks: run it yourself
+```
+Use `--rebase` with `update-branch`: without it, GitHub merges `main` into your branch and adds a merge commit.
+
+### 3. Merge: choose a method
+| Method | What lands on `main` | Use when |
+|---|---|---|
+| `gh pr merge --rebase` | Each branch commit, replayed on top of `main` (new SHAs), no merge commit | Commits are already clean and meaningful, e.g. `build(dbt): add dbt group` then `feat(f1): first model`. **This repo's default**: it keeps "deps separate from code" visible on `main` |
+| `gh pr merge --squash` | One new commit: subject = PR title + `(#N)`, body = squashed messages | The branch has WIP noise ("fix typo", "try again"), or the PR is one logical change anyway |
+| `gh pr merge --merge` | Your commits **plus** a "Merge pull request #N" commit | Avoid: it breaks linear history. Turn it off in the repo settings (below) |
+
+Useful extras:
+- `-d` / `--delete-branch`: after merging, deletes the remote branch, deletes the local branch, switches you to `main` and pulls it.
+- `--subject "…"` / `--body "…"`: override the squash commit message.
+- `--auto`: merge automatically once checks pass. Needs Settings → General → "Allow auto-merge".
+- `--admin`: bypass protection. Don't use it; the point of the PR is CI.
+
+**Recommended:**
+```bash
+gh pr merge --rebase --delete-branch     # or --squash --delete-branch for noisy branches
+```
+
+### 4. Delete the branch (remote and local)
+**Remote.** One of:
+- `--delete-branch` on `gh pr merge` (above), or
+- Settings → General → Pull Requests → **"Automatically delete head branches"** (already on for this repo), or
+- the "Delete branch" button on the merged PR page.
+
+Don't use `git push origin --delete <branch>`; the push hook blocks branch deletes.
+
+**Local.** After a squash *or* rebase merge, the commits on `main` have new SHAs. Git therefore thinks your branch isn't merged, and `git branch -d` refuses ("not fully merged"). Confirm on GitHub, then force-delete:
+```bash
+git switch main && git pull --rebase
+gh pr view <branch> --json state --jq .state      # must print MERGED
+git branch -D <branch>                            # capital -D: force, safe only after MERGED
+git fetch --prune                                 # drop stale origin/* refs for deleted remote branches
+git branch -a                                     # verify
+```
+`gh pr merge --delete-branch` does all of this for you.
+
+### 5. Check the run on `main` after the merge
+Merging triggers a `push` run on `main`, separate from the PR run:
+```bash
+gh run list --branch main --limit 3
+gh run view <run-id> --log-failed     # if it failed
+```
+
+### One-time repo settings for this flow
+Settings → General → **Pull Requests**:
+- **Untick "Allow merge commits"** so `--merge` and the green button's merge-commit option are gone. The history needs it: PRs #1 and #2 were merged with merge commits.
+- Keep "Allow squash merging" and "Allow rebase merging" ticked.
+- "Automatically delete head branches": ticked.
+
+Settings → Branches → `main` rule: optionally tick **"Require linear history"** to enforce it.
 
 ---
 
@@ -212,3 +319,7 @@ make install ARGS="--group dbt"  # re-sync with the groups you're using
 | Wrong Python in `.venv` | `rm -rf .venv && make install` (uses `.python-version`) |
 | Two groups can't resolve together | Add `[tool.uv] conflicts = [[{ group = "a" }, { group = "b" }]]` to `pyproject.toml` |
 | Want a totally clean slate | `make clean && rm -rf .venv && make install` |
+| `git branch -d` says "not fully merged" after the PR merged | Squash/rebase merges create new SHAs → confirm `gh pr view <branch> --json state` is `MERGED`, then `git branch -D <branch>` |
+| PR shows `mergeStateStatus: BEHIND` / "branch out of date" | Strict checks are on → `gh pr update-branch --rebase` (see Part C §2) |
+| Push run on `main` fails in **Tag Release** with `fatal: tag 'v0.0.0' already exists` | Not a merge failure: the merge already happened, only the post-merge tagging job failed. `version.txt` (`v0.0.0`) is already tagged. Fix: turn `release-on-main` into a no-op placeholder (no tagging, no `contents: write`) |
+| `git commit` on `main` blocked for a docs-only change | `no-commit-to-branch` blocks all commits on `main` → use a branch + PR, or run `SKIP=no-commit-to-branch git commit …` yourself for an admin direct push |
