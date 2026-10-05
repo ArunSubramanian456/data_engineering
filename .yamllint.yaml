@@ -1,0 +1,25 @@
+# yamllint rules: https://yamllint.readthedocs.io/en/stable/rules.html
+extends: default
+
+ignore: |
+  .venv/
+  dbt/**/target/
+  dbt/**/dbt_packages/
+
+rules:
+  # Same limit as ruff; long run: commands and URLs are common in workflows.
+  line-length:
+    max: 119
+    level: warning
+  # GitHub Actions uses the bare key `on:`, which YAML 1.1 reads as a boolean.
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+  # No `---` header required.
+  document-start: disable
+  # Allow `# comment` after code with one space (common in configs).
+  comments:
+    min-spaces-from-content: 1
+  indentation:
+    spaces: consistent
+    indent-sequences: consistent
