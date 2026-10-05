@@ -180,3 +180,26 @@ dist
 *.env
 *cache*
 .mcp.json
+
+# data (never commit datasets or local databases)
+data/
+*.duckdb
+*.duckdb.wal
+*.parquet
+
+# dbt
+dbt/**/target/
+dbt/**/dbt_packages/
+dbt/**/logs/
+
+# airflow (runtime state lives next to airflow/.venv)
+airflow/logs/
+airflow/airflow.db
+airflow/airflow.cfg
+airflow/*.generated
+
+# terraform (do commit .terraform.lock.hcl)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
