@@ -14,6 +14,23 @@
     "python.analysis.indexing": true,
     "python.languageServer": "Pylance",
     "python.analysis.completeFunctionParens": true,
+    // src/ layout: let Pylance resolve `data_engineering` imports
+    "python.analysis.extraPaths": [
+        "src"
+    ],
+    // notebooks run from the repo root, so relative paths like data/raw/... work
+    "jupyter.notebookFileRoot": "${workspaceFolder}",
+    // don't watch generated or bulky folders
+    "files.watcherExclude": {
+        "**/.venv/**": true,
+        "**/target/**": true,
+        "**/dbt_packages/**": true,
+        "**/data/**": true,
+        "**/airflow/logs/**": true,
+        "**/.terraform/**": true,
+        "**/test-reports/**": true
+    },
+    // dbt / sqlfluff settings are added in the first dbt week (study_plan.md §5)
     "editor.rulers": [
         {
             "column": 99,
@@ -23,5 +40,5 @@
             "column": 119,
             "color": "#90EE90"
         }
-    ],
+    ]
 }
