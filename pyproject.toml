@@ -36,6 +36,7 @@ dev = [
     "ty>=0.0.24",
     "ruff>=0.15.7",
     "radon>=5.1.0",
+    "ipykernel>=7.4.0",
 ]
 
 # docs: https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
