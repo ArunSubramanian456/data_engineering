@@ -57,3 +57,22 @@ repos:
     rev: v0.0.72
     hooks:
       - id: ty
+        # type-check the package and its tests only (not dbt/, airflow/, glue/ scripts)
+        files: ^(src|tests)/
+
+  # Strip outputs and execution counts from notebooks so diffs stay small and no data leaks into git.
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      - id: nbstripout
+
+  # Lint YAML (workflows, dbt, pre-commit config); rules in .yamllint.yaml.
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict]
+
+# Added later, when the tool is first used (see study_plan.md):
+# - sqlfluff (sqlfluff-lint on dbt/, dbt templater) -> first dbt week
+# - terraform_fmt / terraform_validate (antonbabenko/pre-commit-terraform, infra/) -> week 20
