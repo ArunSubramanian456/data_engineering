@@ -262,8 +262,9 @@ There is **no official Apache Airflow extension**. For DAGs, Pylance against `ai
 **Hands-on (~5.1 h)**
 
 *WSL2 (0.5 h)*
-- [ ] Create `C:\Users\<you>\.wslconfig`: `[wsl2]` → `memory=12GB` (or ~60% of RAM), `processors=6`, `swap=8GB`. Run `wsl --shutdown`.
-- [ ] `sudo apt update && sudo apt install -y build-essential git unzip curl make openjdk-17-jdk`; `git config --global core.autocrlf input`.
+- [ ] Use **Ubuntu 24.04 LTS** in WSL2 (`wsl --install -d Ubuntu-24.04`). 20.04 is out of standard support, and Docker's and HashiCorp's apt repos no longer publish for it.
+- [ ] Create `C:\Users\<you>\.wslconfig`: `[wsl2]` → `memory=` ~60% of RAM (10GB on a 16 GB machine), `processors=6`, `swap=8GB`. Run `wsl --shutdown`.
+- [ ] `sudo apt update && sudo apt install -y build-essential git unzip curl make jq`; `git config --global core.autocrlf input`; `git config --global fetch.prune true`. Java (`openjdk-17-jdk`) only for the Spark phase (week 34+).
 
 *Tooling (1.0 h)*
 - [ ] uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`; `uv python install 3.11 3.12`
@@ -282,25 +283,17 @@ There is **no official Apache Airflow extension**. For DAGs, Pylance against `ai
   git fetch origin && git checkout -t origin/main
   git add study_plan.md && git commit -m "docs(plan): add study plan" && git push -u origin main
   ```
-- [ ] `pyproject.toml`: drop `flask`, `joblib`; set `requires-python = ">=3.11,<3.13"` and ruff `target-version = "py311"` (Glue compatibility). Add dependency groups:
-  ```toml
-  [dependency-groups]
-  dev   = [ ...existing..., "pandera", "moto[s3,athena,glue,stepfunctions]", "nbstripout", "yamllint" ]
-  dbt   = [ "dbt-core>=1.10,<2", "dbt-redshift", "dbt-athena", "dbt-duckdb", "sqlfluff", "sqlfluff-templater-dbt" ]
-  spark = [ "pyspark>=3.5,<3.6", "pyarrow", "duckdb", "jupyterlab", "scikit-learn" ]
-  aws   = [ "boto3", "awswrangler", "redshift-connector" ]
-  ```
-  Keep **Airflow out of the root env** (its pinned constraints conflict); it lives in `airflow/`.
-- [ ] `run.sh install`: change to `uv pip install --group dev --group dbt --group spark --group aws && uv pip install -e .`
-- [ ] Create the layout: `src/data_engineering/` (shared, unit-tested logic: pandas transforms, Lambda handlers, Glue/Spark transforms as pure functions), `dbt/`, `airflow/`, `glue/jobs/`, `spark/`, `lambdas/`, `stepfunctions/`, `infra/`, `docs/`, `data/` (gitignored).
+- [ ] `pyproject.toml`, **minimal and incremental**: runtime deps only numpy, pandas, pydantic; `dev` group only; `requires-python = ">=3.11,<3.13"`, ruff `target-version = "py311"`, `uv python pin 3.11` (Glue compatibility). Further deps are added with `make add ARGS='--group <dbt|aws|spark> …'` in the week that first needs them (see `docs/uv-dependencies.md`, which lists the expected additions). Keep **Airflow out of the root env** (its pinned constraints conflict); it lives in `airflow/`.
+- [ ] `run.sh`: `install` = `uv sync --locked` (+ `pre-commit install` outside CI); `add`/`remove` wrap `uv add`/`uv remove`; tests run via `uv run`.
+- [ ] Layout: `src/data_engineering/` (shared, unit-tested logic: pandas transforms, Lambda handlers, Glue/Spark transforms as pure functions), `docs/`, and `data/raw/` (gitignored) now. Create `dbt/`, `airflow/`, `glue/jobs/`, `spark/`, `lambdas/`, `stepfunctions/` and `infra/` in the week that first uses them (git doesn't track empty folders).
 - [ ] `.gitignore` add: `data/`, `*.duckdb*`, `*.parquet`, `dbt/**/target/`, `dbt/**/dbt_packages/`, `dbt/**/logs/`, `airflow/logs/`, `airflow/airflow.db`, `airflow/airflow.cfg`, `airflow/*.generated`, `.terraform/`, `*.tfstate*`, `*.tfplan`, `.env` (do commit `.terraform.lock.hcl`).
-- [ ] `.pre-commit-config.yaml`: **keep the `no-commit-to-branch` hook** (with the PR flow it guards local `main`; `make lint` passes on feature branches, and `lint:ci` skips it). Add: sqlfluff (`sqlfluff-lint` on `dbt/`), `nbstripout`, `yamllint`, and `terraform_fmt` + `terraform_validate` from `antonbabenko/pre-commit-terraform` (scoped to `infra/`). Limit the `ty` hook to `^(src|tests)/` with `files:`.
+- [ ] `.pre-commit-config.yaml`: **keep the `no-commit-to-branch` hook** (with the PR flow it guards local `main`; `make lint` passes on feature branches, and `lint:ci` skips it). Add now: `nbstripout`, `yamllint` (rules in `.yamllint.yaml`), and limit the `ty` hook to `^(src|tests)/` with `files:`. Add later: sqlfluff (`sqlfluff-lint` on `dbt/`) in the first dbt week; `terraform_fmt` + `terraform_validate` from `antonbabenko/pre-commit-terraform` (scoped to `infra/`) in week 20.
 - [ ] **CI hardening** in `.github/workflows/ci.yaml`: delete the `dump-contexts-to-log` job (never echo secrets, even masked). Keep only the lint and test jobs; drop `check-version-tag` and `build-wheel`. Keep `release-on-main` as a placeholder for future CD (push to `main` only). PR trigger: `opened, synchronize`. Don't add `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secrets; AWS access from CI uses OIDC (week 10).
 - [ ] **Branch protection on `main`** (Settings → Branches): require a PR with 0 approvals; required status checks `Lint, Format, and other static code quality checks` + `Execute tests`, with "up to date" on; no force pushes or deletions; admin bypass allowed. Settings → General → Pull Requests: turn on "Automatically delete head branches".
 - [ ] `make install && make lint && make test` green; commit on a branch, push, open a PR, and merge once CI is green.
 
 *VS Code (0.5 h)*
-- [ ] Install extensions per §5, add settings and the `.code-workspace` file.
+- [ ] Install extensions per §5 (`.vscode/extensions.json` recommends them) and add the general settings. dbt/sqlfluff settings come in the dbt weeks; the `.code-workspace` file comes in week 11, with `airflow/`.
 
 *Data + AWS guardrails (0.6 h)*
 - [ ] Download 2024 yellow + green taxi Parquet (12 months) and `taxi_zone_lookup.csv` into `data/raw/` (TLC Trip Record Data page).
