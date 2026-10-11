@@ -13,7 +13,7 @@ permissions:
 jobs:
   lint-format-and-static-code-checks:
     name: Lint, Format, and other static code quality checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -42,7 +42,7 @@ jobs:
 
   execute-tests:
     name: Execute tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -50,12 +50,14 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.11.29"
+          # lint job saves the cache; this job only restores it (avoids the reserve-cache race)
+          save-cache: false
 
       - name: Install dependencies
         run: |
@@ -70,7 +72,7 @@ jobs:
     name: Deploy placeholder
     needs: [lint-format-and-static-code-checks, execute-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
