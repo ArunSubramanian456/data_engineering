@@ -67,7 +67,7 @@ Status: `⬜ Not started` · `🟨 In progress` · `✅ Done`
 
 | Week | Phase | Focus | Hours | Status |
 |---|---|---|---|---|
-| 1 | 0 Setup | WSL2, tooling, repo from cookiecutter, VS Code | 5.5 | ⬜ |
+| 1 | 0 Setup | WSL2, tooling, repo from cookiecutter, VS Code | 5.5 | ✅ |
 | 2 | 1 dbt | Course S1–S4 follow-along (Snowflake trial starts) | 5.6 | ⬜ |
 | 3 | 1 dbt | Course S5–S10 follow-along | 5.5 | ⬜ |
 | 4 | 1 dbt | Course S11, S13–S16; MP1 kickoff | 5.5 | ⬜ |
@@ -257,25 +257,25 @@ There is **no official Apache Airflow extension**. For DAGs, Pylance against `ai
 ### Week 1 — Environment, repo, dataset (~5.5 h)
 
 **Lectures (~0.4 h)**
-- [ ] [AWSDA S4 Getting Started with S3, IAM and CLI (25 min)](https://www.udemy.com/course/data-engineering-using-aws-analytics-services/learn/lecture/28005754) — skim; you already have SSO
+- [x] [AWSDA S4 Getting Started with S3, IAM and CLI (25 min)](https://www.udemy.com/course/data-engineering-using-aws-analytics-services/learn/lecture/28005754) — skim; you already have SSO
 
 **Hands-on (~5.1 h)**
 
 *WSL2 (0.5 h)*
-- [ ] Use **Ubuntu 24.04 LTS** in WSL2 (`wsl --install -d Ubuntu-24.04`). 20.04 is out of standard support, and Docker's and HashiCorp's apt repos no longer publish for it.
-- [ ] Create `C:\Users\<you>\.wslconfig`: `[wsl2]` → `memory=` ~60% of RAM (10GB on a 16 GB machine), `processors=6`, `swap=8GB`. Run `wsl --shutdown`.
-- [ ] `sudo apt update && sudo apt install -y build-essential git unzip curl make jq`; `git config --global core.autocrlf input`; `git config --global fetch.prune true`. Java (`openjdk-17-jdk`) only for the Spark phase (week 34+).
+- [x] Use **Ubuntu 24.04 LTS** in WSL2 (`wsl --install -d Ubuntu-24.04`). 20.04 is out of standard support, and Docker's and HashiCorp's apt repos no longer publish for it.
+- [x] Create `C:\Users\<you>\.wslconfig`: `[wsl2]` → `memory=` ~60% of RAM (10GB on a 16 GB machine), `processors=6`, `swap=8GB`. Run `wsl --shutdown`.
+- [x] `sudo apt update && sudo apt install -y build-essential git unzip curl make jq`; `git config --global core.autocrlf input`; `git config --global fetch.prune true`. Java (`openjdk-17-jdk`) only for the Spark phase (week 34+).
 
 *Tooling (1.0 h)*
-- [ ] uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`; `uv python install 3.11 3.12`
-- [ ] Docker Engine in WSL2 (docs.docker.com → Install Docker Engine on Ubuntu), add user to `docker` group, enable systemd in `/etc/wsl.conf`
-- [ ] AWS CLI v2 in WSL; copy or recreate SSO profiles in `~/.aws/config`; verify `aws sts get-caller-identity --profile <your-sso-profile>`
-- [ ] GitHub CLI: `gh auth login`
-- [ ] Terraform via HashiCorp's apt repository (developer.hashicorp.com → Install Terraform → Linux/Ubuntu); verify `terraform -version` ≥ 1.10
+- [x] uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`; `uv python install 3.11 3.12`
+- [x] Docker Engine in WSL2 (docs.docker.com → Install Docker Engine on Ubuntu), add user to `docker` group, enable systemd in `/etc/wsl.conf`
+- [x] AWS CLI v2 in WSL; copy or recreate SSO profiles in `~/.aws/config`; verify `aws sts get-caller-identity --profile <your-sso-profile>`
+- [x] GitHub CLI: `gh auth login`
+- [x] Terraform via HashiCorp's apt repository (developer.hashicorp.com → Install Terraform → Linux/Ubuntu); verify `terraform -version` ≥ 1.10
 
 *Repo from your cookiecutter (2.5 h)*
-- [ ] Run your template's **Create or Update Repo** workflow: `repo_name=data_engineering`, **public** (free Actions minutes + GitHub Pages for dbt docs). Merge its PR.
-- [ ] Connect the existing local folder (it already holds `CLAUDE.md`, `.claude/` and this plan, so `git clone` into it would fail). `CLAUDE.md`, `.claude/` and `.mcp.json` are gitignored (local only), so only the plan is committed. Branch protection isn't on yet at this step, so a direct push to `main` is fine:
+- [x] Run your template's **Create or Update Repo** workflow: `repo_name=data_engineering`, **public** (free Actions minutes + GitHub Pages for dbt docs). Merge its PR.
+- [x] Connect the existing local folder (it already holds `CLAUDE.md`, `.claude/` and this plan, so `git clone` into it would fail). `CLAUDE.md`, `.claude/` and `.mcp.json` are gitignored (local only), so only the plan is committed. Branch protection isn't on yet at this step, so a direct push to `main` is fine:
   ```bash
   cd ~/repos/data_engineering
   git init -b main
@@ -283,21 +283,21 @@ There is **no official Apache Airflow extension**. For DAGs, Pylance against `ai
   git fetch origin && git checkout -t origin/main
   git add study_plan.md && git commit -m "docs(plan): add study plan" && git push -u origin main
   ```
-- [ ] `pyproject.toml`, **minimal and incremental**: runtime deps only numpy, pandas, pydantic; `dev` group only; `requires-python = ">=3.11,<3.13"`, ruff `target-version = "py311"`, `uv python pin 3.11` (Glue compatibility). Further deps are added with `make add ARGS='--group <dbt|aws|spark> …'` in the week that first needs them (see `docs/uv-dependencies.md`, which lists the expected additions). Keep **Airflow out of the root env** (its pinned constraints conflict); it lives in `airflow/`.
-- [ ] `run.sh`: `install` = `uv sync --locked` (+ `pre-commit install` outside CI); `add`/`remove` wrap `uv add`/`uv remove`; tests run via `uv run`.
-- [ ] Layout: `src/data_engineering/` (shared, unit-tested logic: pandas transforms, Lambda handlers, Glue/Spark transforms as pure functions), `docs/`, and `data/raw/` (gitignored) now. Create `dbt/`, `airflow/`, `glue/jobs/`, `spark/`, `lambdas/`, `stepfunctions/` and `infra/` in the week that first uses them (git doesn't track empty folders).
-- [ ] `.gitignore` add: `data/`, `*.duckdb*`, `*.parquet`, `dbt/**/target/`, `dbt/**/dbt_packages/`, `dbt/**/logs/`, `airflow/logs/`, `airflow/airflow.db`, `airflow/airflow.cfg`, `airflow/*.generated`, `.terraform/`, `*.tfstate*`, `*.tfplan`, `.env` (do commit `.terraform.lock.hcl`).
-- [ ] `.pre-commit-config.yaml`: **keep the `no-commit-to-branch` hook** (with the PR flow it guards local `main`; `make lint` passes on feature branches, and `lint:ci` skips it). Add now: `nbstripout`, `yamllint` (rules in `.yamllint.yaml`), and limit the `ty` hook to `^(src|tests)/` with `files:`. Add later: sqlfluff (`sqlfluff-lint` on `dbt/`) in the first dbt week; `terraform_fmt` + `terraform_validate` from `antonbabenko/pre-commit-terraform` (scoped to `infra/`) in week 20.
-- [ ] **CI hardening** in `.github/workflows/ci.yaml`: delete the `dump-contexts-to-log` job (never echo secrets, even masked). Keep only the lint and test jobs; drop `check-version-tag` and `build-wheel`. Keep `release-on-main` as a placeholder for future CD (push to `main` only). PR trigger: `opened, synchronize`. Don't add `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secrets; AWS access from CI uses OIDC (week 10).
-- [ ] **Branch protection on `main`** (Settings → Branches): require a PR with 0 approvals; required status checks `Lint, Format, and other static code quality checks` + `Execute tests`, with "up to date" on; no force pushes or deletions; admin bypass allowed. Settings → General → Pull Requests: turn on "Automatically delete head branches".
-- [ ] `make install && make lint && make test` green; commit on a branch, push, open a PR, and merge once CI is green.
+- [x] `pyproject.toml`, **minimal and incremental**: runtime deps only numpy, pandas, pydantic; `dev` group only; `requires-python = ">=3.11,<3.13"`, ruff `target-version = "py311"`, `uv python pin 3.11` (Glue compatibility). Further deps are added with `make add ARGS='--group <dbt|aws|spark> …'` in the week that first needs them (see `docs/uv-dependencies.md`, which lists the expected additions). Keep **Airflow out of the root env** (its pinned constraints conflict); it lives in `airflow/`.
+- [x] `run.sh`: `install` = `uv sync --locked` (+ `pre-commit install` outside CI); `add`/`remove` wrap `uv add`/`uv remove`; tests run via `uv run`.
+- [x] Layout: `src/data_engineering/` (shared, unit-tested logic: pandas transforms, Lambda handlers, Glue/Spark transforms as pure functions), `docs/`, and `data/raw/` (gitignored) now. Create `dbt/`, `airflow/`, `glue/jobs/`, `spark/`, `lambdas/`, `stepfunctions/` and `infra/` in the week that first uses them (git doesn't track empty folders).
+- [x] `.gitignore` add: `data/`, `*.duckdb*`, `*.parquet`, `dbt/**/target/`, `dbt/**/dbt_packages/`, `dbt/**/logs/`, `airflow/logs/`, `airflow/airflow.db`, `airflow/airflow.cfg`, `airflow/*.generated`, `.terraform/`, `*.tfstate*`, `*.tfplan`, `.env` (do commit `.terraform.lock.hcl`).
+- [x] `.pre-commit-config.yaml`: **keep the `no-commit-to-branch` hook** (with the PR flow it guards local `main`; `make lint` passes on feature branches, and `lint:ci` skips it). Add now: `nbstripout`, `yamllint` (rules in `.yamllint.yaml`), and limit the `ty` hook to `^(src|tests)/` with `files:`. Add later: sqlfluff (`sqlfluff-lint` on `dbt/`) in the first dbt week; `terraform_fmt` + `terraform_validate` from `antonbabenko/pre-commit-terraform` (scoped to `infra/`) in week 20.
+- [x] **CI hardening** in `.github/workflows/ci.yaml`: delete the `dump-contexts-to-log` job (never echo secrets, even masked). Keep only the lint and test jobs; drop `check-version-tag` and `build-wheel`. Keep `release-on-main` as a placeholder for future CD (push to `main` only). PR trigger: `opened, synchronize`. Don't add `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secrets; AWS access from CI uses OIDC (week 10).
+- [x] **Branch protection on `main`** (Settings → Branches): require a PR with 0 approvals; required status checks `Lint, Format, and other static code quality checks` + `Execute tests`, with "up to date" on; no force pushes or deletions; admin bypass allowed. Settings → General → Pull Requests: turn on "Automatically delete head branches".
+- [x] `make install && make lint && make test` green; commit on a branch, push, open a PR, and merge once CI is green.
 
 *VS Code (0.5 h)*
-- [ ] Install extensions per §5 (`.vscode/extensions.json` recommends them) and add the general settings. dbt/sqlfluff settings come in the dbt weeks; the `.code-workspace` file comes in week 11, with `airflow/`.
+- [x] Install extensions per §5 (`.vscode/extensions.json` recommends them) and add the general settings. dbt/sqlfluff settings come in the dbt weeks; the `.code-workspace` file comes in week 11, with `airflow/`.
 
 *Data + AWS guardrails (0.6 h)*
-- [ ] Download 2024 yellow + green taxi Parquet (12 months) and `taxi_zone_lookup.csv` into `data/raw/` (TLC Trip Record Data page).
-- [ ] AWS Budgets: alerts at $10/$25/$50 per month; enable Cost Anomaly Detection.
+- [x] Download 2024 yellow + green taxi Parquet (12 months) and `taxi_zone_lookup.csv` into `data/raw/` (TLC Trip Record Data page).
+- [x] AWS Budgets: alerts at $10/$25/$50 per month; enable Cost Anomaly Detection.
 
 **Done when:** `make lint` and `make test` pass in CI on a PR and again on its merge to `main`; `aws sts get-caller-identity` works in WSL; `docker run hello-world` works without sudo.
 
